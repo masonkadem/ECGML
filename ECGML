@@ -1,0 +1,107 @@
+%ECGML
+clear all, close all, clc
+% IHD ECG ML
+% classify IHD vs CTRL patients based on their 5 min baseline ECG
+% Mason Kadem, mkadem@uwo.ca
+
+parentDir = '~/Google Drive/deep/IHD/' ;
+addpath(genpath([parentDir filesep 'functions']))
+
+%load data
+load(fullfile(parentDir,'IHData.mat'))
+
+%get better variable names
+data   = IHData.Data;
+class  = IHData.Labels; 
+
+%explore signals froim diff classes, spectrum, time freq.
+signalAnalyzer(data(1,:), data(20,:))
+
+%create feature table
+features = [mean(data,2) median(data,2) std(data,0,2) mad(data,0,2) skewness(data, 1, 2) iqr(data,2) kurtosis(data,1,2)];
+             
+varnames = {'mean' 'median' 'std' 'mad' 'skewness' 'iqr' 'kurtosis'} ; 
+
+feature_table = array2table(features, 'VariableNames',varnames);
+feature_table = addvars(feature_table,class); % add class labels to table
+
+%partition data
+[i] = cvpartition(feature_table.class, 'Holdout', 0.3);
+train   = feature_table(i.training,:);
+test    = feature_table(i.test,:); 
+
+%Feature selection/engineering
+%method 1 - shows median and mean are correlated, thus we can drop median.
+%assesss correlation btw features so as to reduce redundancies; if output
+%numeric add target variable
+corrv = corr(features);
+imagesc(corrv) 
+colormap('jet'); 
+colorbar
+varnames = {'mean' 'median' 'std' 'mad' 'skewness' 'iqr' 'kurtosis'} ;
+set(gca, 'XTick', 1:size(corrv)); % center x-axis ticks on bins
+set(gca, 'YTick', 1:size(corrv)); % center y-axis ticks on bins
+set(gca, 'XTickLabel', varnames); % set x-axis labels
+set(gca, 'YTickLabel', varnames); % set y-axis labels
+title('correlated features', 'FontSize', 10); % set title;
+
+%method 2
+%assess variance in variables (low variance variables = not cool)
+var(table2array(feature_table(:,1:7)))
+
+%method 3
+%Neighborhood component analysis to find optimal features
+mdl2 = fscnca(table2array(train(:,1:7)), table2array(train(:,8)), 'Standardize', true) ; %'Lambda', 1/length(data(:,1)), 'Verbose',0 
+
+% Plot feature weights
+stem(mdl2.FeatureWeights,'bo');
+% % Select features with weight above 1
+idxf = find(mdl2.FeatureWeights > 0.1)
+
+% Display list of selected feature(s)
+disp(feature_table.Properties.VariableNames(idxf))
+    
+% power spectrum using FFT
+% y = fft(data, [], 2);
+% y(:,1) = []; % remove first column, which stores sum of the data.
+% n = length(y);
+% power = abs(y(1:floor(n))).^2; % power of first half of transform data
+% maxval = max(power);
+
+% maxfreq = 1/2; 
+% 
+% maximum frequency
+% freq = (1:n/2)/(n/2)*maxfreq;    % equally spaced frequency grid
+% plot(freq,power)
+
+%features sufficient? (x, y, grouping) - visuallt inspect scatter plot to
+%see if features adequaltely seperate classes
+gscatter(feature_table.mean,feature_table.skewness,feature_table.class)
+
+%build model
+%fit knn 
+mdl = fitcknn(train,"class") ; 
+
+mdl = fitcknn(...
+    train, ...
+    train(:,8), ...
+    'Distance', 'Euclidean', ...
+    'Exponent', [], ...
+    'NumNeighbors', 1, ...
+    'DistanceWeight', 'Equal', ...
+    'Standardize', true, ...
+    'ClassNames', {'CTL'; 'ihd'});
+% k=1, this model is sensitive to outliers in training data. increasing
+% value of k to decrease sensitivity
+
+%predict on test data % input, ouput = categ array
+predictions = predict(mdl,test);
+
+confm = confusionmat(test.class, predictions); 
+conf = confm*100./sum(confm, 2); % 
+% heatmap of mdl performance
+labels = {'CTL', 'ihd'};
+heatmap(labels, labels, conf, 'Colormap', jet, 'ColorbarVisible','off');
+
+confusionchart(test.class,predictions); %ytrue=vector of known classes, ypred of predicted calss
+
