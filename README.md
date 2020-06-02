@@ -1,6 +1,6 @@
 # ECGML
-various feature selection/engineering methods to classify ECG data. KNN model.
+This script introduces various feature selection/engineering methods to classify ECG data. KNN model.
 
-##Feature selection methods
+## Feature selection methods
 
 Correlation, Neighborhood component anaysis, Variance, 
