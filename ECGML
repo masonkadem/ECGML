@@ -4,7 +4,7 @@ clear all, close all, clc
 % classify IHD vs CTRL patients based on their 5 min baseline ECG
 % Mason Kadem, mkadem@uwo.ca
 
-parentDir = '~/Google Drive/deep/IHD/' ;
+parentDir = '~PATH' ;
 addpath(genpath([parentDir filesep 'functions']))
 
 %load data
@@ -14,7 +14,7 @@ load(fullfile(parentDir,'IHData.mat'))
 data   = IHData.Data;
 class  = IHData.Labels; 
 
-%explore signals froim diff classes, spectrum, time freq.
+%explore signals from diff classes, spectrum, time freq.
 signalAnalyzer(data(1,:), data(20,:))
 
 %create feature table
@@ -31,9 +31,10 @@ train   = feature_table(i.training,:);
 test    = feature_table(i.test,:); 
 
 %Feature selection/engineering
-%method 1 - shows median and mean are correlated, thus we can drop median.
+%method 1 - some variables are highly correlated, thus we can drop median so as to avoid colinear issues.
 %assesss correlation btw features so as to reduce redundancies; if output
 %numeric add target variable
+
 corrv = corr(features);
 imagesc(corrv) 
 colormap('jet'); 
